@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--必要な権限の宣言(位置情報)-->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -12,6 +16,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GourmetPicker"
         tools:targetApi="31">
+
+        <service
+            android:name="MainActivity"
+            android:foregroundServiceType="location"/>
+
+        <!--APIキーを外部に(res/values/api.xml)-->
+        <meta-data
+            android:name="com.example.gourmet picker.API_KEY"
+            android:value="@string/api_key" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">GourmetPicker</string>
+    <string name="tv_latitude_title">緯度:</string>
+    <string name="tv_longitude_title">経度:</string>
+    <string name="alert_dialog">"アプリを継続するためには位置情報の取得が必要です"</string>
+    <string name="message_End">"アプリケーションを終了します。"</string>
+    <string name="ok">OK</string>
+    <string name="no_thanks">No thanks</string>
 </resources>
