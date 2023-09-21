@@ -1,10 +1,7 @@
 package com.example.gourmetpicker;
 
-import androidx.annotation.UiThread;
-import androidx.annotation.WorkerThread;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.os.HandlerCompat;
 
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -15,29 +12,24 @@ import android.location.LocationRequest;
 import android.os.Bundle;
 
 import android.Manifest;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.SocketException;
-import java.net.URL;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.List;
 import java.util.function.Consumer;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.http.GET;
+import retrofit2.http.Query;
 
 public class MainActivity extends AppCompatActivity implements LocationListener
 {
-    final String endpoint = "http://webservice.recruit.co.jp/hotpepper/gourmet/v1/?";
+    final String endpoint = "http://webservice.recruit.co.jp/";
     private String apiKey;
     private LocationManager locationManager;
     private LocationRequest locationRequest;
@@ -61,7 +53,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener
             return;
         }
         apiKey = appInfo.metaData.getString("API_KEY");
-
 
         //権限の確認
         if (ActivityCompat.checkSelfPermission(this,
@@ -91,6 +82,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener
                 (LocationListener) this
         );
 
+        //TODO:ViewBindにする！
         //更新ボタンに接続
         Button btClick = findViewById(R.id.btReload);
         ReloadListener reloadListener = new ReloadListener();
@@ -160,108 +152,69 @@ public class MainActivity extends AppCompatActivity implements LocationListener
         );
     }
 
-    //非同期処理でAPIを叩いてデータを受け取る
-    @UiThread
-    private void receiveAPIData() {
+    private class APIClient {
+
+        private  Retrofit retrofit = null;
+        private  GourmetInterface service = null;
+        public Call res = null;
+
+        public void Init() {
+            retrofit = new Retrofit.Builder().baseUrl(endpoint).build();
+            service = retrofit.create(GourmetInterface.class);
+            res = service.requestQuery(apiKey, latitude, longitude, 5, 4);
+        }
+
+        public void Request() {
+            res.enqueue(new Callback() {
+                @Override
+                public void onResponse(Call call, Response response) {
+                    if(response.isSuccessful())
+                    {
+                        APIResponse api = (APIResponse) response.body();
+
+                        Log.v("success", api.toString());
+                    }
+                }
+
+                @Override
+                public void onFailure(Call call, Throwable t) {
+
+                }
+            });
+        }
+
+        public GourmetInterface getService() {
+            return service;
+        }
+    }
+
+    public interface GourmetInterface {
         //http://webservice.recruit.co.jp/hotpepper/gourmet/v1/?
-        //http://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=[APIキー]&lat=34.67&lng=135.52&range=5&order=4
-        String requestString = endpoint;
-        requestString += "key=" + apiKey;
-        requestString += "&lat=" + latitude + "&lng=" + longitude;
-        requestString += "&range=5&order=4";
-
-        Log.v("AccessURL",requestString);
-
-        Looper mainLooper = Looper.getMainLooper();
-        Handler handler = HandlerCompat.createAsync(mainLooper);
-
-        APIReceiver apiReceiver = new APIReceiver(handler, requestString);
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-        executorService.submit(apiReceiver);
+        //key=[APIキー]&lat=34.67&lng=135.52&range=5&order=4
+        @GET("/hotpepper/gourmet/v1/")
+        Call<APIResponse> requestQuery(@Query("key") String key,
+                               @Query("lat") double lat,
+                               @Query("lng") double lng,
+                               @Query("range") int r,
+                               @Query("order") int o);
     }
 
-    //実際にAPIを叩くクラス
-    private class APIReceiver implements Runnable {
-        private final Handler handler;
-        private final String requestString;
+    public class APIResponse {
+        public Results results;
 
-        public APIReceiver(Handler hnd, String str) {
-            handler = hnd;
-            requestString = str;
+        public class Results {
+            public int results_available;
+            public int results_returned;
+            public List<Shop> shops;
         }
 
-        @WorkerThread
-        @Override
-        public void run() {
-            HttpURLConnection connection = null;
-            InputStream inputStream = null;
-            String result = "";
-
-            try{
-                URL url = new URL(requestString);
-                connection = (HttpURLConnection) url.openConnection();
-
-                connection.setConnectTimeout(3000);
-                connection.setReadTimeout(5000);
-
-                connection.connect();
-                inputStream = connection.getInputStream();
-                result = is2String(inputStream);
-            }
-            catch (MalformedURLException e) {
-                Log.e("ERROR", "変換失敗");
-            }
-            catch (SocketException e) {
-                Log.w("ERROR", "タイムアウト");
-            }
-            catch (IOException e) {
-                Log.e("ERROR", "通信失敗");
-            }
-
-            finally {
-                if(connection != null) {
-                    connection.disconnect();
-                }
-                if(inputStream != null){
-                    try{
-                        inputStream.close();
-                    }
-                    catch (IOException e) {
-                        Log.e("ERROR","解放失敗");
-                    }
-                }
-
-                UIUpdater uiUpdater = new UIUpdater(result);
-                handler.post(uiUpdater);
-            }
-        }
-
-        private String is2String(InputStream inputStream) throws  IOException {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
-            StringBuffer buffer = new StringBuffer();
-            char[] b = new char[1024];
-            int line;
-            while (0 <= (line = reader.read(b))) {
-                buffer.append(b, 0, line);
-            }
-            return buffer.toString();
+        public class Shop {
+            private String id;
+            private String name;
+            private String address;
         }
     }
 
-    //APIから受け取ったデータを反映させるクラス
-    private  class UIUpdater implements  Runnable {
-        private String result;
 
-        public UIUpdater(String res){
-            result = res;
-        }
-
-        @UiThread
-        @Override
-        public void run() {
-            //とりあえずログで出力
-            Log.d("APIResponse", result);
-        }
-    }
 }
 
