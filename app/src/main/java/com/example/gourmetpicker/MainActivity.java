@@ -12,47 +12,45 @@ import android.location.LocationRequest;
 import android.os.Bundle;
 
 import android.Manifest;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
+import android.widget.ListView;
+import android.widget.SimpleAdapter;
 
+import com.google.gson.annotations.SerializedName;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 import retrofit2.Call;
-import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.http.GET;
 import retrofit2.http.Query;
 
 public class MainActivity extends AppCompatActivity implements LocationListener
 {
-    final String endpoint = "http://webservice.recruit.co.jp/";
-    private String apiKey;
     private LocationManager locationManager;
     private LocationRequest locationRequest;
-    private Location location;
     private double latitude;
     private double longitude;
+    private APIClient client;
 
     //TODO:バックグラウンド時にGPSを停止させる
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        //api.xml(gitIgnore済み)からapikeyの取得
-        ApplicationInfo appInfo;
-        try {
-            appInfo = getPackageManager().getApplicationInfo(
-                    getPackageName(),
-                    PackageManager.GET_META_DATA);
-        } catch (PackageManager.NameNotFoundException e) {
-            return;
-        }
-        apiKey = appInfo.metaData.getString("API_KEY");
 
         //権限の確認
         if (ActivityCompat.checkSelfPermission(this,
@@ -82,11 +80,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener
                 (LocationListener) this
         );
 
+        client = new APIClient().Init();
+
         //TODO:ViewBindにする！
         //更新ボタンに接続
         Button btClick = findViewById(R.id.btReload);
         ReloadListener reloadListener = new ReloadListener();
         btClick.setOnClickListener(reloadListener);
+
     }
 
     @Override
@@ -96,6 +97,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+
         if (requestCode == 1000 && grantResults[0] == getPackageManager().PERMISSION_GRANTED) {
             if (ActivityCompat.checkSelfPermission(MainActivity.this,
                     Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -132,89 +134,179 @@ public class MainActivity extends AppCompatActivity implements LocationListener
                 getApplication().getMainExecutor(),
                 new Consumer<Location>() {
                     //成功時の流れ
-                    //TODO:APIに接続後データ取得
                     @Override
-                    public void accept(Location loc) {
-                        location = loc;
-
+                    public void accept(Location location) {
                         latitude = location.getLatitude();
                         longitude = location.getLongitude();
 
-                        TextView tvLatitude = findViewById(R.id.tvLatitudeValue);
-                        tvLatitude.setText(Double.toString(latitude));
-
-                        TextView tvLongitude = findViewById(R.id.tvLongitudeValue);
-                        tvLongitude.setText(Double.toString(longitude));
-
-                        receiveAPIData();
+                        client.execute();
                     }
                 }
         );
     }
 
+    //APIを操作するクラス
     private class APIClient {
+        private ExecutorService executorService = Executors.newSingleThreadExecutor();
+        private Response<GourmetResponse> response = null;
+        private String apiKey;
+        final String baseURL = "http://webservice.recruit.co.jp/";
 
-        private  Retrofit retrofit = null;
-        private  GourmetInterface service = null;
-        public Call res = null;
-
-        public void Init() {
-            retrofit = new Retrofit.Builder().baseUrl(endpoint).build();
-            service = retrofit.create(GourmetInterface.class);
-            res = service.requestQuery(apiKey, latitude, longitude, 5, 4);
+        public void execute() {
+            executorService.submit(new APIInner());
         }
 
-        public void Request() {
-            res.enqueue(new Callback() {
-                @Override
-                public void onResponse(Call call, Response response) {
-                    if(response.isSuccessful())
-                    {
-                        APIResponse api = (APIResponse) response.body();
+        //API取得後のあれこれ
+        public void PostExecute() {
 
-                        Log.v("success", api.toString());
+            List<Shop> responseList = response.body().results.shop;
+            List<Map<String, Object>> shops = new ArrayList<>();
+            Map<String, Object> item;
+
+            for (Shop shop: responseList) {
+                item = new HashMap<>();
+                item.put("Name", shop.name);
+                item.put("Access", shop.mobile_access);
+                shops.add(item);
+            }
+
+            ListView list = findViewById(R.id.lvShopList);
+            list.setAdapter(new SimpleAdapter(
+                    MainActivity.this,
+                    shops,
+                    R.layout.list_shop,
+                    new String[] {"Name", "Access"},
+                    new int[] {R.id.tvName, R.id.tvAccess}
+            ));
+        }
+
+        public Response<GourmetResponse> getResponse() {
+            return response;
+        }
+
+        public APIClient Init() {
+            //api.xml(gitIgnore済み)からapikeyの取得
+            ApplicationInfo appInfo;
+            try {
+                appInfo = getPackageManager().getApplicationInfo(
+                        getPackageName(),
+                        PackageManager.GET_META_DATA);
+            } catch (PackageManager.NameNotFoundException e) {
+                return null;
+            }
+
+            apiKey = appInfo.metaData.getString("API_KEY");
+            return this;
+        }
+
+        private class APIInner implements  Runnable {
+            private Retrofit retrofit = null;
+
+            @Override
+            public void run() {
+                retrofit = new Retrofit.Builder().baseUrl(baseURL).
+                        addConverterFactory(GsonConverterFactory.create())
+                        .build();
+
+                try{
+                    //https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=&lat=34.69372333333333&lng=135.50225333333333&range=5&order=4&Type=lite&format=json
+                    response = retrofit.create(GourmetService.class).
+                            requestQuery(
+                            apiKey,
+                            latitude,
+                            longitude,
+                            5,
+                            4,
+                            "json")
+                            .execute();
+
+                    if(response.isSuccessful()){
+                        Log.v("ok",response.raw().request().url().toString());
+                        new Handler(Looper.getMainLooper()).post(() -> PostExecute());
+                    }
+                    else{
+
                     }
                 }
-
-                @Override
-                public void onFailure(Call call, Throwable t) {
-
+                catch (IOException e){
+                    e.printStackTrace();
                 }
-            });
-        }
-
-        public GourmetInterface getService() {
-            return service;
+            }
         }
     }
 
-    public interface GourmetInterface {
-        //http://webservice.recruit.co.jp/hotpepper/gourmet/v1/?
-        //key=[APIキー]&lat=34.67&lng=135.52&range=5&order=4
-        @GET("/hotpepper/gourmet/v1/")
-        Call<APIResponse> requestQuery(@Query("key") String key,
-                               @Query("lat") double lat,
-                               @Query("lng") double lng,
-                               @Query("range") int r,
-                               @Query("order") int o);
+    //API呼び出しフォーマット
+    public interface GourmetService {
+        @GET("hotpepper/gourmet/v1/")
+        Call<GourmetResponse> requestQuery(
+                @Query("key") String key,
+                @Query("lat") double lat,
+                @Query("lng") double lng,
+                @Query("range") int range,
+                @Query("order") int order,
+                @Query("format") String format);
     }
 
-    public class APIResponse {
+    //APIから送信される情報のフォーマット形式(JSON)
+    public class GourmetResponse {
         public Results results;
-
-        public class Results {
-            public int results_available;
-            public int results_returned;
-            public List<Shop> shops;
-        }
-
-        public class Shop {
-            private String id;
-            private String name;
-            private String address;
-        }
     }
 
+    public class Results {
+        private String api_version;
+        private int results_available;
+        private int results_returned;
+        private int results_start;
+        private List<Shop> shop;
+    }
 
+    public class Shop {
+        private String id;
+        private String name;
+        private String logo_image;
+        private String address;
+        private double lat;
+        private double lng;
+        private Genre genre;
+        private SubGenre sub_genre;
+        private Budget budget;
+        private String budget_memo;
+        @SerializedName("catch")
+        private String shopCatch;
+        private String mobile_access;
+        private ShopURL urls;
+        private String open;
+        private String other_memo;
+        private String shop_detail_memo;
+        private Photo photo;
+
+        public class Genre {
+            private String name;
+            @SerializedName("catch")
+            private String genreCatch;
+        }
+
+        public class SubGenre {
+            private String name;
+        }
+
+        public class Budget {
+            private String name;
+            private String average;
+        }
+
+        public class ShopURL {
+            private String pc;
+        }
+
+        public class Photo {
+            private Photo_MB mobile;
+
+            public class Photo_MB {
+                private String l;
+                private String s;
+            }
+        }
+    }
 }
 

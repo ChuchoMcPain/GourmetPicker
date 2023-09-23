@@ -6,46 +6,21 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <TextView
-        android:id="@+id/tvLatitude"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:text="@string/tv_latitude_title"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/tvLatitudeValue"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:maxLines="1"
-        app:layout_constraintStart_toEndOf="@+id/tvLatitude"
-        app:layout_constraintTop_toTopOf="@+id/tvLatitude" />
-
-    <TextView
-        android:id="@+id/tvLongitude"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/tv_longitude_title"
-        app:layout_constraintStart_toStartOf="@+id/tvLatitude"
-        app:layout_constraintTop_toBottomOf="@+id/tvLatitude" />
-
-    <TextView
-        android:id="@+id/tvLongitudeValue"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:maxLines="1"
-        app:layout_constraintBaseline_toBottomOf="@+id/tvLongitude"
-        app:layout_constraintStart_toEndOf="@+id/tvLongitude"
-        app:layout_constraintTop_toTopOf="@+id/tvLongitude" />
-
     <Button
         android:id="@+id/btReload"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:layout_constraintStart_toStartOf="@+id/tvLongitude"
-        app:layout_constraintTop_toBottomOf="@+id/tvLongitude" />
+        android:layout_marginTop="4dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ListView
+        android:id="@+id/lvShopList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btReload" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
