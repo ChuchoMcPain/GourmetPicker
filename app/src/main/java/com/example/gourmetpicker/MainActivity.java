@@ -3,8 +3,11 @@ package com.example.gourmetpicker;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
-import android.content.pm.ApplicationInfo;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -15,36 +18,39 @@ import android.Manifest;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
+import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.SimpleAdapter;
+import android.widget.TextView;
 
-import com.google.gson.annotations.SerializedName;
+import com.example.gourmetpicker.databinding.ActivityMainBinding;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
-import retrofit2.Call;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
-import retrofit2.http.GET;
-import retrofit2.http.Query;
-
-public class MainActivity extends AppCompatActivity implements LocationListener
-{
+public class MainActivity extends AppCompatActivity implements LocationListener {
+    private ActivityMainBinding mainBinding;
     private LocationManager locationManager;
     private LocationRequest locationRequest;
+    //もっといい位置無い？
     private double latitude;
     private double longitude;
     private APIClient client;
+    private ArrayList<RestaurantItem> restaurantArray;
+    private ExecutorService executorService;
 
     //TODO:バックグラウンド時にGPSを停止させる
     @Override
@@ -55,8 +61,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener
         //権限の確認
         if (ActivityCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            String[] permissions = {android.Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION };
-            ActivityCompat.requestPermissions(MainActivity.this,permissions,1000);
+            String[] permissions = {android.Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
+            ActivityCompat.requestPermissions(MainActivity.this, permissions, 1000);
 
             return;
         }
@@ -80,23 +86,29 @@ public class MainActivity extends AppCompatActivity implements LocationListener
                 (LocationListener) this
         );
 
-        client = new APIClient().Init();
+        client = new APIClient(getString(R.string.api_key));
+        executorService = Executors.newSingleThreadExecutor();
 
-        //TODO:ViewBindにする！
+        //ViewBind設定
+        mainBinding = ActivityMainBinding.inflate(getLayoutInflater());
+        View view = mainBinding.getRoot();
+        setContentView(view);
+
         //更新ボタンに接続
-        Button btClick = findViewById(R.id.btReload);
-        ReloadListener reloadListener = new ReloadListener();
-        btClick.setOnClickListener(reloadListener);
+        mainBinding.btReload.setOnClickListener(new ReloadListener());
+        mainBinding.lvRestaurantList.setOnItemClickListener(new ListItemClickListener());
 
+        getCurrentLocation();
     }
 
     @Override
-    public void onLocationChanged(Location loc) {}
+    public void onLocationChanged(Location loc) {
+    }
 
     //権限再要請後の流れ
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (requestCode == 1000 && grantResults[0] == getPackageManager().PERMISSION_GRANTED) {
             if (ActivityCompat.checkSelfPermission(MainActivity.this,
@@ -116,12 +128,25 @@ public class MainActivity extends AppCompatActivity implements LocationListener
         }
     }
 
-    private  void getCurrentLocation(){
+    private class ListItemClickListener implements AdapterView.OnItemClickListener {
+        @Override
+        public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+            RestaurantItem item = (RestaurantItem) adapterView.getItemAtPosition(i);
+
+            Intent intent = new Intent(MainActivity.this, DetailActivity.class);
+            intent.putExtra("ID", item.m_Id);
+            startActivity(intent);
+        }
+    }
+
+    private void getCurrentLocation() {
         //権限の確認
         if (ActivityCompat.checkSelfPermission(getApplicationContext(),
                 android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            String[] permissions = {android.Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION };
-            ActivityCompat.requestPermissions(MainActivity.this,permissions,1000);
+            String[] permissions = {
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION};
+            ActivityCompat.requestPermissions(MainActivity.this, permissions, 1000);
 
             return;
         }
@@ -139,173 +164,145 @@ public class MainActivity extends AppCompatActivity implements LocationListener
                         latitude = location.getLatitude();
                         longitude = location.getLongitude();
 
-                        client.execute();
+                        //TODO:検索範囲設定
+                        Future future = client.gpsSearch(latitude,longitude,5);
+
+                        //取得が完了したら続行
+                        try {
+                            future.get();
+                        } catch (ExecutionException e) {
+                            throw new RuntimeException(e);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                        onPostSearch();
                     }
                 }
         );
     }
 
-    //APIを操作するクラス
-    private class APIClient {
-        private ExecutorService executorService = Executors.newSingleThreadExecutor();
-        private Response<GourmetResponse> response = null;
-        private String apiKey;
-        final String baseURL = "http://webservice.recruit.co.jp/";
+    //API取得後リストビューを更新する
+    public void onPostSearch() {
+        List<APIClient.Restaurant> responseList = client.getResponse().body().results.restaurants;
+        restaurantArray = new ArrayList<>();
+        RestaurantItem inner;
+        Integer requestCnt = 0;
 
-        public void execute() {
-            executorService.submit(new APIInner());
+        for (APIClient.Restaurant response : responseList) {
+            inner = new RestaurantItem();
+            inner.setId(response.id);
+            inner.setName(response.name);
+            inner.setAccess(response.mobile_access);
+            //仮画像
+            inner.setImage(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher));
+            restaurantArray.add(inner);
+
+            //画像取得を別スレッドに
+            ImageGetTask task = new ImageGetTask(response.logo_image, requestCnt);
+            executorService.submit(task);
+            requestCnt++;
+        }
+        ListReload();
+    }
+
+    //リストビュー用アダプター
+    public class RestaurantAdapter extends ArrayAdapter<RestaurantItem> {
+        private int m_Resource;
+        private List<RestaurantItem> m_Shops;
+        private LayoutInflater m_Inflater;
+
+        public RestaurantAdapter(Context context, int res, List<RestaurantItem> items) {
+            super(context, res, items);
+            m_Resource = res;
+            m_Shops = items;
+            m_Inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         }
 
-        //API取得後のあれこれ
-        public void PostExecute() {
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            View view;
 
-            List<Shop> responseList = response.body().results.shop;
-            List<Map<String, Object>> shops = new ArrayList<>();
-            Map<String, Object> item;
-
-            for (Shop shop: responseList) {
-                item = new HashMap<>();
-                item.put("Name", shop.name);
-                item.put("Access", shop.mobile_access);
-                shops.add(item);
+            if (convertView != null) {
+                view = convertView;
+            } else {
+                view = m_Inflater.inflate(m_Resource, null);
             }
 
-            ListView list = findViewById(R.id.lvShopList);
-            list.setAdapter(new SimpleAdapter(
-                    MainActivity.this,
-                    shops,
-                    R.layout.list_shop,
-                    new String[] {"Name", "Access"},
-                    new int[] {R.id.tvName, R.id.tvAccess}
-            ));
+            RestaurantItem item = m_Shops.get(position);
+
+            TextView title = (TextView) view.findViewById(R.id.tvName);
+            title.setText(item.m_Name);
+
+            TextView access = (TextView) view.findViewById(R.id.tvAccess);
+            access.setText(item.m_Access);
+
+            ImageView image = (ImageView) view.findViewById(R.id.ivLogo);
+            image.setImageBitmap(item.m_Image);
+
+            return view;
+        }
+    }
+
+    private void ListReload() {
+        RestaurantAdapter adapter = new RestaurantAdapter(MainActivity.this, R.layout.list_restaurant, restaurantArray);
+        ListView list = mainBinding.lvRestaurantList;
+        list.setAdapter(adapter);
+    }
+
+    // Image取得用スレッドクラス
+    class ImageGetTask implements Runnable {
+        private String m_Url;
+        private Bitmap m_Image;
+        private Integer m_Number;
+
+        ImageGetTask(String url, Integer number) {
+            this.m_Url = url;
+            this.m_Number = number;
         }
 
-        public Response<GourmetResponse> getResponse() {
-            return response;
-        }
-
-        public APIClient Init() {
-            //api.xml(gitIgnore済み)からapikeyの取得
-            ApplicationInfo appInfo;
+        @Override
+        public void run() {
             try {
-                appInfo = getPackageManager().getApplicationInfo(
-                        getPackageName(),
-                        PackageManager.GET_META_DATA);
-            } catch (PackageManager.NameNotFoundException e) {
-                return null;
-            }
+                URL imageUrl = new URL(m_Url);
+                InputStream imageIs;
+                imageIs = imageUrl.openStream();
+                m_Image = BitmapFactory.decodeStream(imageIs);
+                Log.v("ok", m_Image.toString());
 
-            apiKey = appInfo.metaData.getString("API_KEY");
-            return this;
-        }
+                //画像が取得でき次第更新
+                restaurantArray.get(m_Number).m_Image = m_Image;
+                new Handler(Looper.getMainLooper()).post(() -> ListReload());
 
-        private class APIInner implements  Runnable {
-            private Retrofit retrofit = null;
-
-            @Override
-            public void run() {
-                retrofit = new Retrofit.Builder().baseUrl(baseURL).
-                        addConverterFactory(GsonConverterFactory.create())
-                        .build();
-
-                try{
-                    //https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=&lat=34.69372333333333&lng=135.50225333333333&range=5&order=4&Type=lite&format=json
-                    response = retrofit.create(GourmetService.class).
-                            requestQuery(
-                            apiKey,
-                            latitude,
-                            longitude,
-                            5,
-                            4,
-                            "json")
-                            .execute();
-
-                    if(response.isSuccessful()){
-                        Log.v("ok",response.raw().request().url().toString());
-                        new Handler(Looper.getMainLooper()).post(() -> PostExecute());
-                    }
-                    else{
-
-                    }
-                }
-                catch (IOException e){
-                    e.printStackTrace();
-                }
+            } catch (MalformedURLException e) {
+            } catch (IOException e) {
             }
         }
     }
 
-    //API呼び出しフォーマット
-    public interface GourmetService {
-        @GET("hotpepper/gourmet/v1/")
-        Call<GourmetResponse> requestQuery(
-                @Query("key") String key,
-                @Query("lat") double lat,
-                @Query("lng") double lng,
-                @Query("range") int range,
-                @Query("order") int order,
-                @Query("format") String format);
-    }
+    public class RestaurantItem {
+        private String m_Id;
+        private String m_Name;
+        private String m_Access;
+        private Bitmap m_Image;
 
-    //APIから送信される情報のフォーマット形式(JSON)
-    public class GourmetResponse {
-        public Results results;
-    }
-
-    public class Results {
-        private String api_version;
-        private int results_available;
-        private int results_returned;
-        private int results_start;
-        private List<Shop> shop;
-    }
-
-    public class Shop {
-        private String id;
-        private String name;
-        private String logo_image;
-        private String address;
-        private double lat;
-        private double lng;
-        private Genre genre;
-        private SubGenre sub_genre;
-        private Budget budget;
-        private String budget_memo;
-        @SerializedName("catch")
-        private String shopCatch;
-        private String mobile_access;
-        private ShopURL urls;
-        private String open;
-        private String other_memo;
-        private String shop_detail_memo;
-        private Photo photo;
-
-        public class Genre {
-            private String name;
-            @SerializedName("catch")
-            private String genreCatch;
+        public RestaurantItem() {
         }
 
-        public class SubGenre {
-            private String name;
+        public void setId(String m_Id) {
+            this.m_Id = m_Id;
         }
 
-        public class Budget {
-            private String name;
-            private String average;
+        public void setName(String m_Name) {
+            this.m_Name = m_Name;
         }
 
-        public class ShopURL {
-            private String pc;
+        public void setAccess(String m_Access) {
+            this.m_Access = m_Access;
         }
 
-        public class Photo {
-            private Photo_MB mobile;
-
-            public class Photo_MB {
-                private String l;
-                private String s;
-            }
+        public void setImage(Bitmap m_Image) {
+            this.m_Image = m_Image;
         }
     }
 }

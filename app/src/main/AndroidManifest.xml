@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-
-    <!--必要な権限の宣言(位置情報)-->
+    <!-- 必要な権限の宣言(位置情報) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -17,14 +16,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.GourmetPicker"
-        tools:targetApi="31"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
+        <activity
+            android:name=".DetailActivity"
+            android:exported="false" />
 
         <service
-            android:name="MainActivity"
-            android:foregroundServiceType="location"/>
-
-        <!--APIキーを外部に(res/values/api.xml)-->
+            android:name=".MainActivity"
+            android:foregroundServiceType="location" /> <!-- APIキーを外部に(res/values/api.xml) -->
         <meta-data
             android:name="API_KEY"
             android:value="@string/api_key" />
