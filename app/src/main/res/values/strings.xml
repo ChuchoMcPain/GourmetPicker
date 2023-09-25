@@ -4,8 +4,15 @@
     <string name="message_End">"アプリケーションを終了します。"</string>
     <string name="ok">OK</string>
     <string name="no_thanks">No thanks</string>
-    <string name="tvFreeDrink">飲み放題:</string>
-    <string name="tvFreeFood">食べ放題:</string>
-    <string name="tvPrivateRoom">個室:</string>
-    <string name="tvOtherMemo">備考:</string>
+
+    <string name="btReload">検索</string>
+
+    <string name="tvAddress">住所</string>
+    <string name="tvOpen">営業時間</string>
+    <string name="tvFreeDrink">飲み放題</string>
+    <string name="tvFreeFood">食べ放題</string>
+    <string name="tvPrivateRoom">個室</string>
+    <string name="tvOtherMemo">備考</string>
+    <string name="btMap">住所で検索する</string>
+    <string name="btNet">サイトで見る</string>
 </resources>

@@ -44,6 +44,10 @@ public class APIClient {
         return executorService.submit(new GPSSearchTask(lat, lng, range));
     }
 
+    public Future idSearch(String id) {
+        return executorService.submit(new IDSearchTask(id));
+    }
+
     //GPSでの検索を行う場合のタスククラス
     private class GPSSearchTask implements  Runnable {
         private double m_Lat;
@@ -67,6 +71,40 @@ public class APIClient {
                                 m_Lng,
                                 m_Range,
                                 4,
+                                format)
+                        .execute();
+
+                if(response.isSuccessful()){
+                    Log.v("ok", response.raw().request().url().toString());
+                    new Handler(Looper.getMainLooper()).post(() -> onPostExecute());
+                } else{}
+            }
+            catch (IOException e){
+                e.printStackTrace();
+            }
+        }
+
+        public void onPostExecute() {
+
+        }
+    }
+
+    //IDでの検索を行う場合のタスククラス
+    private class IDSearchTask implements  Runnable {
+        private String m_Id;
+
+        IDSearchTask(String id) {
+            m_Id = id;
+        }
+
+        @Override
+        public void run() {
+            try{
+                //https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=&lat=34.69372333333333&lng=135.50225333333333&range=5&order=4&format=json
+                response = retrofit.create(GourmetService.class).
+                        requestID(
+                                apiKey,
+                                m_Id,
                                 format)
                         .execute();
 
@@ -138,6 +176,9 @@ public class APIClient {
         String mobile_access;
         RestaurantURL urls;
         String open;
+        String free_drink;
+        String free_food;
+        String private_room;
         String other_memo;
         @SerializedName("shop_detail_memo")
         String detail_memo;

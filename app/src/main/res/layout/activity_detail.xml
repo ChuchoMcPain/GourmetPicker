@@ -18,85 +18,98 @@
 
     <TextView
         android:id="@+id/tvRestaurantName"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
+        android:layout_marginEnd="32dp"
         android:maxLines="2"
         android:text="TextView"
-        android:textSize="24sp"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/ivPhoto"
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/tvAddress"
-        android:layout_width="wrap_content"
+        android:id="@+id/tvGenre"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:maxLines="2"
         android:text="TextView"
-        android:textSize="18sp"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/tvRestaurantName"
         app:layout_constraintTop_toBottomOf="@+id/tvRestaurantName" />
 
     <TextView
-        android:id="@+id/tvOpen"
-        android:layout_width="wrap_content"
+        android:id="@+id/tvAddress"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:maxLines="1"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="8dp"
         android:text="TextView"
-        android:textSize="18sp"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/ivPhoto"
         app:layout_constraintTop_toBottomOf="@+id/ivPhoto" />
 
     <TextView
-        android:id="@+id/tvGenre"
-        android:layout_width="wrap_content"
+        android:id="@+id/tvOpen"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="TextView"
-        android:textSize="18sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/tvOpen"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@+id/tvAddress"
+        app:layout_constraintTop_toBottomOf="@+id/tvAddress" />
+
+    <TextView
+        android:id="@+id/tvFreeDrink"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:layout_marginEnd="24dp"
+        android:text="@string/tvFreeDrink"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/tvOpen"
         app:layout_constraintTop_toBottomOf="@+id/tvOpen" />
 
     <TextView
-        android:id="@+id/tvFreeDrink"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="16sp"
-        android:text="@string/tvFreeDrink"
-        app:layout_constraintStart_toStartOf="@+id/tvGenre"
-        app:layout_constraintTop_toBottomOf="@+id/tvGenre" />
-
-    <TextView
         android:id="@+id/tvFreeFood"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="16sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="24dp"
         android:text="@string/tvFreeFood"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/tvFreeDrink"
         app:layout_constraintTop_toBottomOf="@+id/tvFreeDrink" />
 
     <TextView
         android:id="@+id/tvPrivateRoom"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="16sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="24dp"
         android:text="@string/tvPrivateRoom"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/tvFreeFood"
         app:layout_constraintTop_toBottomOf="@+id/tvFreeFood" />
 
     <TextView
         android:id="@+id/tvOtherMemo"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="16sp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="24dp"
         android:text="@string/tvOtherMemo"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="@+id/tvPrivateRoom"
         app:layout_constraintTop_toBottomOf="@+id/tvPrivateRoom" />
 
@@ -107,21 +120,21 @@
         android:layout_marginStart="16dp"
         android:layout_marginEnd="24dp"
         android:layout_marginBottom="32dp"
-        android:text="Button"
+        android:text="@string/btMap"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/btURL"
+        app:layout_constraintEnd_toStartOf="@+id/btNet"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintHorizontal_chainStyle="spread"
         app:layout_constraintStart_toStartOf="parent" />
 
     <Button
-        android:id="@+id/btURL"
+        android:id="@+id/btNet"
         android:layout_width="0dp"
         android:layout_height="63dp"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="32dp"
-        android:text="Button"
+        android:text="@string/btNet"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"

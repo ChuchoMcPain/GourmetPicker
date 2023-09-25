@@ -25,6 +25,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.example.gourmetpicker.databinding.ActivityMainBinding;
@@ -40,6 +41,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+
+import kotlin.Metadata;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private ActivityMainBinding mainBinding;
@@ -94,11 +97,23 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         View view = mainBinding.getRoot();
         setContentView(view);
 
-        //更新ボタンに接続
+        //リスナーに接続
         mainBinding.btReload.setOnClickListener(new ReloadListener());
         mainBinding.lvRestaurantList.setOnItemClickListener(new ListItemClickListener());
 
         getCurrentLocation();
+
+
+        String[] spinnerItems = {"半径300m", "半径500m", "半径1km", "半径2km", "半径5km"};
+        Spinner spinner = mainBinding.spSearchRange;
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                spinnerItems
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setSelection(2);
     }
 
     @Override
