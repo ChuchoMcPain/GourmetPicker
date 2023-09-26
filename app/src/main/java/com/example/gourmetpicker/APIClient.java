@@ -24,28 +24,29 @@ public class APIClient {
     final String baseURL = "http://webservice.recruit.co.jp/";
     final String format = "json";
     private String apiKey;
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
-    private Retrofit retrofit = null;
-    private Response<GourmetResponse> response;
+    private Retrofit m_retrofit;
+    private Response<GourmetResponse> m_response;
 
     APIClient(String key){
         apiKey = key;
 
-        retrofit = new Retrofit.Builder().baseUrl(baseURL).
+        m_retrofit = new Retrofit.Builder().baseUrl(baseURL).
                 addConverterFactory(GsonConverterFactory.create())
                 .build();
     }
 
     public Response<GourmetResponse> getResponse() {
-        return response;
+        return m_response;
     }
 
     public Future gpsSearch(double lat, double lng, int range) {
-        return executorService.submit(new GPSSearchTask(lat, lng, range));
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        return service.submit(new GPSSearchTask(lat, lng, range));
     }
 
     public Future idSearch(String id) {
-        return executorService.submit(new IDSearchTask(id));
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        return service.submit(new IDSearchTask(id));
     }
 
     //GPSでの検索を行う場合のタスククラス
@@ -64,7 +65,7 @@ public class APIClient {
         public void run() {
             try{
                 //https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=&lat=34.69372333333333&lng=135.50225333333333&range=5&order=4&format=json
-                response = retrofit.create(GourmetService.class).
+                m_response = m_retrofit.create(GourmetService.class).
                         requestGPS(
                                 apiKey,
                                 m_Lat,
@@ -74,8 +75,8 @@ public class APIClient {
                                 format)
                         .execute();
 
-                if(response.isSuccessful()){
-                    Log.v("ok", response.raw().request().url().toString());
+                if(m_response.isSuccessful()){
+                    Log.v("ok", m_response.raw().request().url().toString());
                     new Handler(Looper.getMainLooper()).post(() -> onPostExecute());
                 } else{}
             }
@@ -101,15 +102,15 @@ public class APIClient {
         public void run() {
             try{
                 //https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=&lat=34.69372333333333&lng=135.50225333333333&range=5&order=4&format=json
-                response = retrofit.create(GourmetService.class).
+                m_response = m_retrofit.create(GourmetService.class).
                         requestID(
                                 apiKey,
                                 m_Id,
                                 format)
                         .execute();
 
-                if(response.isSuccessful()){
-                    Log.v("ok", response.raw().request().url().toString());
+                if(m_response.isSuccessful()){
+                    Log.v("ok", m_response.raw().request().url().toString());
                     new Handler(Looper.getMainLooper()).post(() -> onPostExecute());
                 } else{}
             }
@@ -145,7 +146,9 @@ public class APIClient {
                 @Query("format") String format);
     }
 
-    //APIから送信される情報のフォーマット群(JSON)
+    //APIから送信される情報のフォーマット群
+    //下記のリファレンス参照
+    //https://webservice.recruit.co.jp/doc/hotpepper/reference.html
     public class GourmetResponse {
         Results results;
     }

@@ -25,7 +25,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.example.gourmetpicker.databinding.ActivityMainBinding;
@@ -40,70 +39,67 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.Consumer;
-
-import kotlin.Metadata;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
-    private ActivityMainBinding mainBinding;
-    private LocationManager locationManager;
-    private LocationRequest locationRequest;
-    //もっといい位置無い？
-    private double latitude;
-    private double longitude;
-    private APIClient client;
-    private ArrayList<RestaurantItem> restaurantArray;
-    private ExecutorService executorService;
+    private ActivityMainBinding m_Binding;
+    private LocationManager m_locationManager;
+    private LocationRequest m_locationRequest;
+    private APIClient m_Client;
+    private ArrayList<RestaurantItem> m_RestaurantArray;
 
     //TODO:バックグラウンド時にGPSを停止させる
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         //権限の確認
-        if (ActivityCompat.checkSelfPermission(this,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            String[] permissions = {android.Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
+        if (ActivityCompat.checkSelfPermission(
+                this, android.Manifest.permission.ACCESS_COARSE_LOCATION )
+                != PackageManager.PERMISSION_GRANTED) {
+
+            String[] permissions = {
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION };
+
             ActivityCompat.requestPermissions(MainActivity.this, permissions, 1000);
 
             return;
         }
 
         //locationManagerの初期化
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        m_locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
 
         //intervalMillis:GPS更新頻度(ミリ秒)
         //durationMillis:座標保持時間(ミリ秒)
-        locationRequest = new LocationRequest.
+        m_locationRequest = new LocationRequest.
                 Builder(1000).
                 setDurationMillis(1000).
                 build();
 
         //minTimeMs:GPS更新頻度(ミリ秒)
         //minDistanceM:最短更新距離(メートル)
-        locationManager.requestLocationUpdates(
+        m_locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 10000L,
                 5.0f,
                 (LocationListener) this
         );
 
-        client = new APIClient(getString(R.string.api_key));
-        executorService = Executors.newSingleThreadExecutor();
+        //APIキーを取得して流し込み
+        m_Client = new APIClient(getString(R.string.api_key));
 
         //ViewBind設定
-        mainBinding = ActivityMainBinding.inflate(getLayoutInflater());
-        View view = mainBinding.getRoot();
+        m_Binding = ActivityMainBinding.inflate(getLayoutInflater());
+        View view = m_Binding.getRoot();
         setContentView(view);
 
         //リスナーに接続
-        mainBinding.btReload.setOnClickListener(new ReloadListener());
-        mainBinding.lvRestaurantList.setOnItemClickListener(new ListItemClickListener());
-
-        getCurrentLocation();
+        m_Binding.lvRestaurantList.setOnItemClickListener(new ListItemClickListener());
 
 
+        /*
         String[] spinnerItems = {"半径300m", "半径500m", "半径1km", "半径2km", "半径5km"};
         Spinner spinner = mainBinding.spSearchRange;
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -113,16 +109,20 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
-        spinner.setSelection(2);
+        spinner.setSelection(2);*/
     }
+
+
 
     @Override
     public void onLocationChanged(Location loc) {
+        getCurrentLocation();
     }
 
     //権限再要請後の流れ
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (requestCode == 1000 && grantResults[0] == getPackageManager().PERMISSION_GRANTED) {
@@ -136,25 +136,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
-    private class ReloadListener implements View.OnClickListener {
-        @Override
-        public void onClick(View view) {
-            getCurrentLocation();
-        }
-    }
-
+    //店をタッチしたときに詳細画面に移る
+    //IDだけ送ってあとは詳細画面側で取得させる　API複数回叩くの良くないかも？
     private class ListItemClickListener implements AdapterView.OnItemClickListener {
         @Override
         public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+
             RestaurantItem item = (RestaurantItem) adapterView.getItemAtPosition(i);
 
             Intent intent = new Intent(MainActivity.this, DetailActivity.class);
-            intent.putExtra("ID", item.m_Id);
+            intent.putExtra("ID", item.getId());
             startActivity(intent);
         }
     }
 
     private void getCurrentLocation() {
+
         //権限の確認
         if (ActivityCompat.checkSelfPermission(getApplicationContext(),
                 android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -166,76 +163,95 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             return;
         }
 
+        ExecutorService service = Executors.newSingleThreadExecutor();
+
         //現在位置取得
-        locationManager.getCurrentLocation(
+        //成功時の流れ
+        m_locationManager.getCurrentLocation(
                 LocationManager.GPS_PROVIDER,
-                locationRequest,
+                m_locationRequest,
                 null,
-                getApplication().getMainExecutor(),
-                new Consumer<Location>() {
-                    //成功時の流れ
-                    @Override
-                    public void accept(Location location) {
-                        latitude = location.getLatitude();
-                        longitude = location.getLongitude();
+                service,
+                location -> {
 
-                        //TODO:検索範囲設定
-                        Future future = client.gpsSearch(latitude,longitude,5);
+                    double latitude = location.getLatitude();
+                    double longitude = location.getLongitude();
 
-                        //取得が完了したら続行
-                        try {
-                            future.get();
-                        } catch (ExecutionException e) {
-                            throw new RuntimeException(e);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+                    //TODO:検索範囲設定
+                    Future future = m_Client.gpsSearch(latitude,longitude,3);
 
-                        onPostSearch();
+                    //取得が完了したら続行してリストビューに流し込む
+                    try {
+                        future.get();
                     }
+                    catch (ExecutionException e) {
+                        return;
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    //UIスレッドでリストビューの更新
+                    MainActivity.this.runOnUiThread(this::onPostSearch);
                 }
         );
     }
 
-    //API取得後リストビューを更新する
+    //APIから情報取得後配列に流し込む
+    //UIスレッドで呼んでね
     public void onPostSearch() {
-        List<APIClient.Restaurant> responseList = client.getResponse().body().results.restaurants;
-        restaurantArray = new ArrayList<>();
-        RestaurantItem inner;
+
+        //検索結果ゼロの場合
+        if(m_Client.getResponse().body().results.results_available == 0){
+            m_Binding.tvState.setText(R.string.AvailableZero);
+            return;
+        }
+
+        m_Binding.tvState.setVisibility(View.INVISIBLE);
+
+        List<APIClient.Restaurant> responseList = m_Client.getResponse().body().results.restaurants;
+        m_RestaurantArray = new ArrayList<>();
         Integer requestCnt = 0;
 
+
         for (APIClient.Restaurant response : responseList) {
-            inner = new RestaurantItem();
+
+            RestaurantItem inner = new RestaurantItem();
             inner.setId(response.id);
             inner.setName(response.name);
             inner.setAccess(response.mobile_access);
+
             //仮画像
             inner.setImage(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher));
-            restaurantArray.add(inner);
+            m_RestaurantArray.add(inner);
 
             //画像取得を別スレッドに
+            ExecutorService service = Executors.newSingleThreadExecutor();
+
             ImageGetTask task = new ImageGetTask(response.logo_image, requestCnt);
-            executorService.submit(task);
+            service.submit(task);
             requestCnt++;
         }
+
         ListReload();
     }
 
-    //リストビュー用アダプター
+    //アダプター
     public class RestaurantAdapter extends ArrayAdapter<RestaurantItem> {
         private int m_Resource;
-        private List<RestaurantItem> m_Shops;
+        private List<RestaurantItem> m_ItemList;
         private LayoutInflater m_Inflater;
 
         public RestaurantAdapter(Context context, int res, List<RestaurantItem> items) {
             super(context, res, items);
+
             m_Resource = res;
-            m_Shops = items;
+            m_ItemList = items;
             m_Inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
+
             View view;
 
             if (convertView != null) {
@@ -244,7 +260,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 view = m_Inflater.inflate(m_Resource, null);
             }
 
-            RestaurantItem item = m_Shops.get(position);
+            RestaurantItem item = m_ItemList.get(position);
 
             TextView title = (TextView) view.findViewById(R.id.tvName);
             title.setText(item.m_Name);
@@ -259,9 +275,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
+    //配列の情報を使ってリストビューの更新を行う
     private void ListReload() {
-        RestaurantAdapter adapter = new RestaurantAdapter(MainActivity.this, R.layout.list_restaurant, restaurantArray);
-        ListView list = mainBinding.lvRestaurantList;
+
+        RestaurantAdapter adapter = new RestaurantAdapter(
+                MainActivity.this,
+                R.layout.list_restaurant,
+                m_RestaurantArray);
+
+        ListView list = m_Binding.lvRestaurantList;
         list.setAdapter(adapter);
     }
 
@@ -278,16 +300,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         @Override
         public void run() {
+
             try {
+
                 URL imageUrl = new URL(m_Url);
                 InputStream imageIs;
                 imageIs = imageUrl.openStream();
                 m_Image = BitmapFactory.decodeStream(imageIs);
                 Log.v("ok", m_Image.toString());
 
-                //画像が取得でき次第更新
-                restaurantArray.get(m_Number).m_Image = m_Image;
-                new Handler(Looper.getMainLooper()).post(() -> ListReload());
+                //画像が取得でき次第配列を更新
+                m_RestaurantArray.get(m_Number).m_Image = m_Image;
+
+                //全部更新できたらリストビューの更新を行う
+                if(m_Client.getResponse().body().results.results_returned == m_Number + 1){
+                    new Handler(Looper.getMainLooper()).post(() -> ListReload());
+                }
 
             } catch (MalformedURLException e) {
             } catch (IOException e) {
@@ -302,23 +330,26 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         private Bitmap m_Image;
 
         public RestaurantItem() {
+            m_Id = "";
+            m_Name = "";
+            m_Access = "";
+            m_Image = null;
         }
 
-        public void setId(String m_Id) {
-            this.m_Id = m_Id;
+        public void setId(String id) { m_Id = id; }
+        public void setName(String name) {
+            m_Name = name;
         }
-
-        public void setName(String m_Name) {
-            this.m_Name = m_Name;
+        public void setAccess(String access) {
+            m_Access = access;
         }
-
-        public void setAccess(String m_Access) {
-            this.m_Access = m_Access;
+        public void setImage(Bitmap image) {
+            m_Image = image;
         }
-
-        public void setImage(Bitmap m_Image) {
-            this.m_Image = m_Image;
-        }
+        public String getId() { return m_Id; }
+        public String getName() { return m_Name; }
+        public String getAccess() { return m_Access; }
+        public Bitmap getImage() { return m_Image; }
     }
 }
 

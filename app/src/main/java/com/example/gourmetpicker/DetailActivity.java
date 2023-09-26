@@ -54,13 +54,13 @@ public class DetailActivity extends AppCompatActivity {
         detailBinding.tvRestaurantName.setText(response.name);
         detailBinding.tvGenre.setText(response.genre.name + "\n" + response.sub_genre.name);
 
-        detailBinding.tvAddress.setText(getText(R.string.tvAddress) + "\n" + response.address);
-        detailBinding.tvOpen.setText(getText(R.string.tvOpen) + "\n " + response.open);
+        detailBinding.tvAddress.setText(getText(R.string.Address) + "\n" + response.address);
+        detailBinding.tvOpen.setText(getText(R.string.Open) + "\n " + response.open);
 
-        detailBinding.tvFreeDrink.setText(getText(R.string.tvFreeDrink) + "\n " + response.free_drink);
-        detailBinding.tvFreeFood.setText(getText(R.string.tvFreeFood) + "\n " + response.free_food);
-        detailBinding.tvPrivateRoom.setText(getText(R.string.tvPrivateRoom) + "\n " + response.private_room);
-        detailBinding.tvOtherMemo.setText(getText(R.string.tvOtherMemo) + "\n " + response.other_memo);
+        detailBinding.tvFreeDrink.setText(getText(R.string.FreeDrink) + "\n " + response.free_drink);
+        detailBinding.tvFreeFood.setText(getText(R.string.FreeFood) + "\n " + response.free_food);
+        detailBinding.tvPrivateRoom.setText(getText(R.string.PrivateRoom) + "\n " + response.private_room);
+        detailBinding.tvOtherMemo.setText(getText(R.string.OtherMemo) + "\n " + response.other_memo);
 
         detailBinding.btNet.setOnClickListener(new goSiteListener());
         detailBinding.btMap.setOnClickListener(new goMapListener());
