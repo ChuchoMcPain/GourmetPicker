@@ -35,7 +35,7 @@
         android:layout_marginStart="32dp"
         android:layout_marginEnd="32dp"
         android:layout_marginBottom="16dp"
-        android:text="1/25"
+        android:text="0/0"
         android:textAlignment="center"
         app:layout_constraintBottom_toBottomOf="@+id/ibPrevious"
         app:layout_constraintEnd_toStartOf="@+id/ibNext"

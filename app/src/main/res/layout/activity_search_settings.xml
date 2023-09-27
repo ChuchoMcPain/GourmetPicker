@@ -7,8 +7,63 @@
     tools:context=".SearchSettingsActivity">
 
     <TextView
-        android:id="@+id/textView3"
+        android:id="@+id/tvSearchSettings"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="TextView" />
+        android:layout_marginTop="16dp"
+        android:text="@string/SearchSettings"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tvSearchRange"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:layout_marginEnd="32dp"
+        android:text="@string/Range"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@+id/tvSearchSettings"
+        app:layout_constraintTop_toBottomOf="@+id/tvSearchSettings" />
+
+    <Spinner
+        android:id="@+id/spSearchRange"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        app:layout_constraintStart_toEndOf="@+id/tvSearchRange"
+        app:layout_constraintTop_toTopOf="@+id/tvSearchRange" />
+
+    <TextView
+        android:id="@+id/tvSortBy"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="@string/SortBy"
+        android:textSize="16sp"
+        app:layout_constraintStart_toStartOf="@+id/tvSearchRange"
+        app:layout_constraintTop_toBottomOf="@+id/tvSearchRange" />
+
+    <Spinner
+        android:id="@+id/spSortBy"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        app:layout_constraintStart_toEndOf="@+id/tvSortBy"
+        app:layout_constraintTop_toTopOf="@+id/tvSortBy" />
+
+    <Button
+        android:id="@+id/btSaveSettings"
+        android:layout_width="0dp"
+        android:layout_height="63sp"
+        android:layout_marginStart="64dp"
+        android:layout_marginEnd="64dp"
+        android:layout_marginBottom="32dp"
+        android:text="@string/btSaveSettings"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

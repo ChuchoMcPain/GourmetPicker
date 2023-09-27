@@ -1,5 +1,11 @@
 package com.example.gourmetpicker;
 
+import static androidx.core.math.MathUtils.clamp;
+import static java.lang.Math.ceil;
+import static java.lang.Math.max;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
@@ -46,6 +52,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private LocationRequest m_locationRequest;
     private APIClient m_Client;
     private ArrayList<RestaurantItem> m_RestaurantArray;
+    private ActivityResultLauncher<Intent> m_Settings;
+    private double m_Latitude;
+    private double m_Longitude;
+    private Boolean isFirstTime;
+    private int m_PageCnt;
+    private Double m_MaxPage;
 
     //TODO:バックグラウンド時にGPSを停止させる
     @Override
@@ -95,31 +107,43 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         View view = m_Binding.getRoot();
         setContentView(view);
 
-        //リスナーに接続
-        m_Binding.lvRestaurantList.setOnItemClickListener(new ListItemClickListener());
+        //保存ボタンを押して戻ってきた場合の処理の宣言
+        m_Settings = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    Intent receive = result.getData();
 
+                    m_Client.setRange(receive.getIntExtra("range", 3));
+                    m_Client.setSortByDistance(receive.getBooleanExtra("sortByDistance", false));
 
-        /*
-        String[] spinnerItems = {"半径300m", "半径500m", "半径1km", "半径2km", "半径5km"};
-        Spinner spinner = mainBinding.spSearchRange;
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                spinnerItems
+                    m_PageCnt = 0;
+                    getCurrentLocation();
+                }
         );
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setSelection(2);*/
+
+        //リスナーに接続
+        m_Binding.lvRestaurantList.setOnItemClickListener(new listItemClickListener());
+        m_Binding.fabPageSelect.setOnClickListener(new goSearchSettingsListener());
+        m_Binding.ibNext.setOnClickListener(new pageChangeListener(1));
+        m_Binding.ibPrevious.setOnClickListener(new pageChangeListener(-1));
+
+        m_PageCnt = 0;
+        m_MaxPage = 0d;
+        isFirstTime = true;
     }
 
-
-
+    //初回のみリストビューの更新を行う
     @Override
     public void onLocationChanged(Location loc) {
-        getCurrentLocation();
+
+        if(isFirstTime){
+
+            isFirstTime = false;
+            getCurrentLocation();
+        }
     }
 
-    //権限再要請後の流れ
+    //位置情報取得権限再要請後の流れ
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
 
@@ -131,22 +155,57 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 //拒否られたのでやれることなし。
                 return;
             }
+
             //許可されたので再試行
             getCurrentLocation();
         }
     }
 
-    //店をタッチしたときに詳細画面に移る
+    //店舗をタッチした時に詳細画面に移る
     //IDだけ送ってあとは詳細画面側で取得させる　API複数回叩くの良くないかも？
-    private class ListItemClickListener implements AdapterView.OnItemClickListener {
+    private class listItemClickListener implements AdapterView.OnItemClickListener {
         @Override
         public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
 
+            //選択した店舗のIDを取得して店舗詳細画面に渡す
+            //店舗詳細画面側でIDを使用して情報を再取得させる
             RestaurantItem item = (RestaurantItem) adapterView.getItemAtPosition(i);
 
             Intent intent = new Intent(MainActivity.this, DetailActivity.class);
             intent.putExtra("ID", item.getId());
+
             startActivity(intent);
+        }
+    }
+
+    //右下の検索マークをタッチした時に検索条件設定画面に移る
+    //保存して検索ボタンで戻ってきた場合のみ設定を受け取って再検索を行う
+    private class goSearchSettingsListener implements View.OnClickListener {
+        @Override
+        public void onClick(View view) {
+
+            Intent intent = new Intent(getApplication(), SearchSettingsActivity.class);
+            intent.putExtra("range", m_Client.getRange() - 1);
+            intent.putExtra("sortByDistance", m_Client.getSortByDistance());
+
+            m_Settings.launch(intent);
+        }
+    }
+
+    //ページ変更ボタン用リスナー
+    //接続時に渡した数値分増減させる
+    private class pageChangeListener implements View.OnClickListener {
+        Integer m_Value;
+
+        pageChangeListener(int value){
+            m_Value = value;
+        }
+
+        @Override
+        public void onClick(View view) {
+
+            m_PageCnt = clamp(m_PageCnt + m_Value,0, m_MaxPage.intValue() - 1);
+            searchRestaurant();
         }
     }
 
@@ -174,26 +233,36 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 service,
                 location -> {
 
-                    double latitude = location.getLatitude();
-                    double longitude = location.getLongitude();
+                    m_Latitude = location.getLatitude();
+                    m_Longitude = location.getLongitude();
 
-                    //TODO:検索範囲設定
-                    Future future = m_Client.gpsSearch(latitude,longitude,3);
-
-                    //取得が完了したら続行してリストビューに流し込む
-                    try {
-                        future.get();
-                    }
-                    catch (ExecutionException e) {
-                        return;
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    //UIスレッドでリストビューの更新
-                    MainActivity.this.runOnUiThread(this::onPostSearch);
+                    searchRestaurant();
                 }
         );
+    }
+
+    public void searchRestaurant(){
+
+        Future future;
+
+        if(m_PageCnt == 0){
+            future = m_Client.gpsSearch(m_Latitude,m_Longitude);
+        }else{
+            future = m_Client.pageGPSSearch(m_Latitude,m_Longitude,m_PageCnt * 10 + 1);
+        }
+
+        //取得が完了したら続行してリストビューに流し込む
+        try {
+            future.get();
+        }
+        catch (ExecutionException e) {
+            return;
+        } catch (InterruptedException e) {
+            return;
+        }
+
+        //UIスレッドでリストビューの更新
+        MainActivity.this.runOnUiThread(this::onPostSearch);
     }
 
     //APIから情報取得後配列に流し込む
@@ -203,15 +272,17 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         //検索結果ゼロの場合
         if(m_Client.getResponse().body().results.results_available == 0){
             m_Binding.tvState.setText(R.string.AvailableZero);
+            m_Binding.tvState.setVisibility(View.VISIBLE);
             return;
         }
-
         m_Binding.tvState.setVisibility(View.INVISIBLE);
+
+        m_MaxPage = ceil((double)m_Client.getResponse().body().results.results_available / 10d);
+        m_Binding.tvPage.setText((m_PageCnt + 1) + "/" +  m_MaxPage.intValue());
 
         List<APIClient.Restaurant> responseList = m_Client.getResponse().body().results.restaurants;
         m_RestaurantArray = new ArrayList<>();
         Integer requestCnt = 0;
-
 
         for (APIClient.Restaurant response : responseList) {
 

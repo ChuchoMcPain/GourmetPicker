@@ -5,22 +5,38 @@
     <string name="ok">OK</string>
     <string name="no_thanks">No thanks</string>
 
-
+    //店舗一覧画面
     <string name="SearchList">付近のお店一覧</string>
     <string name="NowLoading">読み込み中です。しばらくお待ち下さい。</string>
     <string name="AvailableZero">取得件数が0です。</string>
 
+    //検索条件設定画面
     <string name="SearchSettings">検索条件設定</string>
-    <string name="Range">検索範囲</string>
-    <string name="btSave">保存して検索</string>
+    <string name="Range">検索範囲:</string>
+    <string name="SortBy">ソート順:</string>
+    <string name="btSaveSettings">設定を保存して検索</string>
 
-    <string name="Address">住所</string>
+    <string-array name="spRangeArray">
+        <item>半径300m</item>
+        <item>半径500m</item>
+        <item>半径1km</item>
+        <item>半径2km</item>
+        <item>半径3km</item>
+    </string-array>
+
+    <string-array name="spBySortArray">
+        <item>近場順</item>
+        <item>オススメ順</item>
+    </string-array>
+
+    //店舗詳細画面
+    <string name="Address">所在地</string>
     <string name="Open">営業時間</string>
     <string name="FreeDrink">飲み放題</string>
     <string name="FreeFood">食べ放題</string>
     <string name="PrivateRoom">個室</string>
     <string name="OtherMemo">備考</string>
+    <string name="btGoMap">所在地で検索する</string>
+    <string name="btGoSite">サイトで見る</string>
 
-    <string name="GoMap">住所で検索する</string>
-    <string name="GoSite">サイトで見る</string>
 </resources>
