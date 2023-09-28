@@ -25,10 +25,9 @@ public class SearchSettingsActivity extends AppCompatActivity {
         setContentView(view);
 
         //* スピナー設定 *
-        //検索半径
+        //** 検索半径 **
         Spinner spinner = m_Binding.spSearchRange;
         String[] spinnerItems = getResources().getStringArray(R.array.spRangeArray);
-
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
@@ -36,26 +35,24 @@ public class SearchSettingsActivity extends AppCompatActivity {
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
-
         spinner.setSelection(getIntent().getIntExtra("range",2));
 
-        //ソート順
+        //** ソート順 **
         spinner = m_Binding.spSortBy;
         spinnerItems = getResources().getStringArray(R.array.spBySortArray);
-
         adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 spinnerItems
         );
         spinner.setAdapter(adapter);
-
         spinner.setSelection(getIntent().getBooleanExtra("sortByDistance",true)? 1:0);
 
         //リスナーに接続
         m_Binding.btSaveSettings.setOnClickListener(new saveListener());
     }
 
+    //選択項目の情報を一覧表示画面に送りアクティビティを閉じる
     private class saveListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {

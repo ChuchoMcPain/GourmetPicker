@@ -54,11 +54,6 @@ public class APIClient {
     //* 別スレッドでAPIを叩く処理を行う *
     //* Futureを返すのでfuture.getで同期できる *
     //* 上のgetResponseと合わせて使用する *
-    public Future gpsSearch(double lat, double lng) {
-        ExecutorService service = Executors.newSingleThreadExecutor();
-        return service.submit(new GPSSearchTask(lat, lng));
-    }
-
     public Future pageGPSSearch(double lat, double lng, int start) {
         ExecutorService service = Executors.newSingleThreadExecutor();
         return service.submit(new PageGPSSearchTask(lat, lng, start));
@@ -70,51 +65,6 @@ public class APIClient {
     }
 
     //GPSでの検索を行う場合のタスククラス
-    private class GPSSearchTask implements  Runnable {
-        private double m_Lat;
-        private double m_Lng;
-        private  int m_Order;
-
-        GPSSearchTask(double lat, double lng) {
-
-            m_Lat = lat;
-            m_Lng = lng;
-
-            //trueの場合はおすすめ順でソートする
-            m_Order = isSortByDistance? 4:1;
-        }
-
-        @Override
-        public void run() {
-
-            try{
-                //.../v1/?lat=34.69&lng=135.50&range=5&order=4&format=json
-                m_Response = m_Retrofit.create(GourmetService.class).
-                        requestGPS(
-                                apiKey,
-                                m_Lat,
-                                m_Lng,
-                                m_Range,
-                                m_Order,
-                                format)
-                        .execute();
-
-                if(m_Response.isSuccessful()){
-                    Log.v("ok", m_Response.raw().request().url().toString());
-                    new Handler(Looper.getMainLooper()).post(() -> onPostExecute());
-                } else{}
-            }
-            catch (IOException e){
-                e.printStackTrace();
-            }
-        }
-
-        public void onPostExecute() {
-
-        }
-    }
-
-    //GPSでの検索を行った上で取得位置を指定できるタスククラス
     private class PageGPSSearchTask implements  Runnable {
         private double m_Lat;
         private double m_Lng;
@@ -202,17 +152,6 @@ public class APIClient {
         final String endpoint = "hotpepper/gourmet/v1/";
 
         //位置情報を使用した検索
-        //店舗一覧画面用
-        @GET(endpoint)
-        Call<GourmetResponse> requestGPS(
-                @Query("key") String key,
-                @Query("lat") double lat,
-                @Query("lng") double lng,
-                @Query("range") int range,
-                @Query("order") int order,
-                @Query("format") String format);
-
-        //ページング対応版
         //店舗一覧画面用
         @GET(endpoint)
         Call<GourmetResponse> requestGPStoPage(

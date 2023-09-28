@@ -37,6 +37,7 @@ public class DetailActivity extends AppCompatActivity {
         View view = m_Binding.getRoot();
         setContentView(view);
 
+        //APIキー取得後、ID検索を行う
         m_Client = new APIClient(getString(R.string.api_key));
         Future future = m_Client.idSearch(intent.getStringExtra("ID"));
 
@@ -59,6 +60,7 @@ public class DetailActivity extends AppCompatActivity {
             m_Binding.tvGenre.setText(m_Response.genre.name);
         }
 
+        //テキストビューに流し込み
         m_Binding.tvRestaurantName.setText(m_Response.name);
         m_Binding.tvAddress.setText(getText(R.string.Address) + "\n" + m_Response.address);
         m_Binding.tvOpen.setText(getText(R.string.Open) + "\n " + m_Response.open);
@@ -77,6 +79,7 @@ public class DetailActivity extends AppCompatActivity {
         executorService.submit(task);
     }
 
+    //ホットペッパーグルメ公式サイトに掲載されているページまで移動
     private class goSiteListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {
@@ -86,6 +89,7 @@ public class DetailActivity extends AppCompatActivity {
         }
     }
 
+    //ブラウザで所在地検索を行う
     //地図APIキー取得出来ないから検索で代用
     private class goMapListener implements View.OnClickListener {
         @Override

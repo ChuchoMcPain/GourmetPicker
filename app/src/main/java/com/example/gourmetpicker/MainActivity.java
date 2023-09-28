@@ -2,7 +2,6 @@ package com.example.gourmetpicker;
 
 import static androidx.core.math.MathUtils.clamp;
 import static java.lang.Math.ceil;
-import static java.lang.Math.max;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -51,13 +50,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private LocationManager m_locationManager;
     private LocationRequest m_locationRequest;
     private APIClient m_Client;
+    private SearchData m_SearchData;
     private ArrayList<RestaurantItem> m_RestaurantArray;
+    private Boolean isFirstSearch;
+
+    //検索条件設定画面から情報を受け取るための変数
     private ActivityResultLauncher<Intent> m_Settings;
-    private double m_Latitude;
-    private double m_Longitude;
-    private Boolean isFirstTime;
-    private int m_PageCnt;
-    private Double m_MaxPage;
 
     //TODO:バックグラウンド時にGPSを停止させる
     @Override
@@ -107,17 +105,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         View view = m_Binding.getRoot();
         setContentView(view);
 
-        //保存ボタンを押して戻ってきた場合の処理の宣言
+        //検索条件設定画面から戻ってきた場合の処理の宣言
         m_Settings = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    Intent receive = result.getData();
 
-                    m_Client.setRange(receive.getIntExtra("range", 3));
-                    m_Client.setSortByDistance(receive.getBooleanExtra("sortByDistance", false));
+                    //保存して検索ボタンを押して戻ってきた場合
+                    if(result.getResultCode() == RESULT_OK) {
+                        Intent receive = result.getData();
 
-                    m_PageCnt = 0;
-                    getCurrentLocation();
+                        //保存した検索条件で検索を行う
+                        m_Client.setRange(receive.getIntExtra("range", 3));
+                        m_Client.setSortByDistance(receive.getBooleanExtra("sortByDistance", false));
+
+                        m_SearchData.setPageCnt(0);
+                        getCurrentLocation();
+                    }
                 }
         );
 
@@ -127,20 +130,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         m_Binding.ibNext.setOnClickListener(new pageChangeListener(1));
         m_Binding.ibPrevious.setOnClickListener(new pageChangeListener(-1));
 
-        m_PageCnt = 0;
-        m_MaxPage = 0d;
-        isFirstTime = true;
-    }
-
-    //初回のみリストビューの更新を行う
-    @Override
-    public void onLocationChanged(Location loc) {
-
-        if(isFirstTime){
-
-            isFirstTime = false;
-            getCurrentLocation();
-        }
+        m_SearchData = new SearchData();
+        isFirstSearch = true;
     }
 
     //位置情報取得権限再要請後の流れ
@@ -158,6 +149,169 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
             //許可されたので再試行
             getCurrentLocation();
+        }
+    }
+
+    //初回のみリストビューの更新を行う
+    @Override
+    public void onLocationChanged(Location location) {
+
+        if(isFirstSearch){
+
+            isFirstSearch = false;
+            getCurrentLocation();
+        }
+    }
+
+    //現在位置を取得
+    //取得後、検索を行う
+    private void getCurrentLocation() {
+
+        //権限の確認
+        if (ActivityCompat.checkSelfPermission(getApplicationContext(),
+                android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            String[] permissions = {
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION};
+            ActivityCompat.requestPermissions(MainActivity.this, permissions, 1000);
+
+            return;
+        }
+
+        ExecutorService service = Executors.newSingleThreadExecutor();
+
+        //現在位置取得
+        //成功時の流れ
+        m_locationManager.getCurrentLocation(
+                LocationManager.GPS_PROVIDER,
+                m_locationRequest,
+                null,
+                service,
+                location -> {
+
+                    m_SearchData.setLatitude(location.getLatitude());
+                    m_SearchData.setLongitude(location.getLongitude());
+
+                    searchRestaurant();
+                }
+        );
+    }
+
+    //非同期処理で店舗検索を行う
+    //検索に成功した場合、リストビューの更新に進む
+    public void searchRestaurant(){
+
+        Future future;
+
+        future = m_Client.pageGPSSearch(
+                m_SearchData.getLatitude(),
+                m_SearchData.getLongitude(),
+                m_SearchData.getPageCnt() * 10 + 1
+        );
+
+        //取得が完了したら続行してリストビューに流し込む
+        try {
+            future.get();
+        }
+        catch (ExecutionException e) {
+            return;
+        } catch (InterruptedException e) {
+            return;
+        }
+
+        //UIスレッドでリストビューの更新
+        MainActivity.this.runOnUiThread(this::onPostSearch);
+    }
+
+    //APIから情報取得後配列に流し込む
+    //UIスレッドで呼んでね
+    public void onPostSearch() {
+
+        //検索結果ゼロの場合
+        if(m_Client.getResponse().body().results.results_available == 0){
+            m_Binding.tvState.setText(R.string.AvailableZero);
+            m_Binding.tvState.setVisibility(View.VISIBLE);
+            return;
+        }
+
+        m_Binding.tvState.setVisibility(View.INVISIBLE);
+
+        //ページ番号の描画
+        Double maxPage = ceil((double)m_Client.getResponse().body().results.results_available / 10d);
+        m_Binding.tvPage.setText((m_SearchData.getPageCnt() + 1) + "/" +  maxPage.intValue());
+
+        List<APIClient.Restaurant> responseList = m_Client.getResponse().body().results.restaurants;
+        m_RestaurantArray = new ArrayList<>();
+        Integer requestCnt = 0;
+
+        //受け取った数繰り返す
+        for (APIClient.Restaurant response : responseList) {
+
+            RestaurantItem inner = new RestaurantItem();
+            inner.setId(response.id);
+            inner.setName(response.name);
+            inner.setAccess(response.mobile_access);
+
+            //仮画像を挿入
+            inner.setImage(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher));
+            m_RestaurantArray.add(inner);
+
+            //画像取得を別スレッドに
+            ExecutorService service = Executors.newSingleThreadExecutor();
+            ImageGetTask task = new ImageGetTask(response.logo_image, requestCnt);
+            service.submit(task);
+
+            requestCnt++;
+        }
+
+        ListReload();
+    }
+
+    //配列の情報を使ってリストビューの更新を行う
+    private void ListReload() {
+
+        RestaurantAdapter adapter = new RestaurantAdapter(
+                MainActivity.this,
+                R.layout.list_restaurant,
+                m_RestaurantArray);
+
+        ListView list = m_Binding.lvRestaurantList;
+        list.setAdapter(adapter);
+    }
+
+    // 画像取得用スレッドクラス
+    class ImageGetTask implements Runnable {
+        private String m_Url;
+        private Bitmap m_Image;
+        private Integer m_Number;
+
+        ImageGetTask(String url, Integer number) {
+            this.m_Url = url;
+            this.m_Number = number;
+        }
+
+        @Override
+        public void run() {
+
+            try {
+
+                URL imageUrl = new URL(m_Url);
+                InputStream imageIs;
+                imageIs = imageUrl.openStream();
+                m_Image = BitmapFactory.decodeStream(imageIs);
+                Log.v("ok", m_Image.toString());
+
+                //画像が取得でき次第配列を更新
+                m_RestaurantArray.get(m_Number).m_Image = m_Image;
+
+                //全部更新できたらリストビューの更新を行う
+                if(m_Client.getResponse().body().results.results_returned == m_Number + 1){
+                    new Handler(Looper.getMainLooper()).post(() -> ListReload());
+                }
+
+            } catch (MalformedURLException e) {
+            } catch (IOException e) {
+            }
         }
     }
 
@@ -193,7 +347,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     //ページ変更ボタン用リスナー
-    //接続時に渡した数値分増減させる
+    //コントロールに接続時、渡した数値分増減させる（コンストラクタ参照）
     private class pageChangeListener implements View.OnClickListener {
         Integer m_Value;
 
@@ -204,109 +358,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         @Override
         public void onClick(View view) {
 
-            m_PageCnt = clamp(m_PageCnt + m_Value,0, m_MaxPage.intValue() - 1);
+            //移動先ページが限界を超え無いよう調整
+            Double maxPage = ceil((double)m_Client.getResponse().body().results.results_available / 10d);
+
+            m_SearchData.setPageCnt(
+                    clamp(
+                    m_SearchData.getPageCnt() + m_Value,
+                    0,
+                    maxPage.intValue() - 1)
+            );
+
             searchRestaurant();
         }
     }
 
-    private void getCurrentLocation() {
-
-        //権限の確認
-        if (ActivityCompat.checkSelfPermission(getApplicationContext(),
-                android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            String[] permissions = {
-                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION};
-            ActivityCompat.requestPermissions(MainActivity.this, permissions, 1000);
-
-            return;
-        }
-
-        ExecutorService service = Executors.newSingleThreadExecutor();
-
-        //現在位置取得
-        //成功時の流れ
-        m_locationManager.getCurrentLocation(
-                LocationManager.GPS_PROVIDER,
-                m_locationRequest,
-                null,
-                service,
-                location -> {
-
-                    m_Latitude = location.getLatitude();
-                    m_Longitude = location.getLongitude();
-
-                    searchRestaurant();
-                }
-        );
-    }
-
-    public void searchRestaurant(){
-
-        Future future;
-
-        if(m_PageCnt == 0){
-            future = m_Client.gpsSearch(m_Latitude,m_Longitude);
-        }else{
-            future = m_Client.pageGPSSearch(m_Latitude,m_Longitude,m_PageCnt * 10 + 1);
-        }
-
-        //取得が完了したら続行してリストビューに流し込む
-        try {
-            future.get();
-        }
-        catch (ExecutionException e) {
-            return;
-        } catch (InterruptedException e) {
-            return;
-        }
-
-        //UIスレッドでリストビューの更新
-        MainActivity.this.runOnUiThread(this::onPostSearch);
-    }
-
-    //APIから情報取得後配列に流し込む
-    //UIスレッドで呼んでね
-    public void onPostSearch() {
-
-        //検索結果ゼロの場合
-        if(m_Client.getResponse().body().results.results_available == 0){
-            m_Binding.tvState.setText(R.string.AvailableZero);
-            m_Binding.tvState.setVisibility(View.VISIBLE);
-            return;
-        }
-        m_Binding.tvState.setVisibility(View.INVISIBLE);
-
-        m_MaxPage = ceil((double)m_Client.getResponse().body().results.results_available / 10d);
-        m_Binding.tvPage.setText((m_PageCnt + 1) + "/" +  m_MaxPage.intValue());
-
-        List<APIClient.Restaurant> responseList = m_Client.getResponse().body().results.restaurants;
-        m_RestaurantArray = new ArrayList<>();
-        Integer requestCnt = 0;
-
-        for (APIClient.Restaurant response : responseList) {
-
-            RestaurantItem inner = new RestaurantItem();
-            inner.setId(response.id);
-            inner.setName(response.name);
-            inner.setAccess(response.mobile_access);
-
-            //仮画像
-            inner.setImage(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher));
-            m_RestaurantArray.add(inner);
-
-            //画像取得を別スレッドに
-            ExecutorService service = Executors.newSingleThreadExecutor();
-
-            ImageGetTask task = new ImageGetTask(response.logo_image, requestCnt);
-            service.submit(task);
-            requestCnt++;
-        }
-
-        ListReload();
-    }
-
-    //アダプター
+    //一覧表示用アダプター
     public class RestaurantAdapter extends ArrayAdapter<RestaurantItem> {
         private int m_Resource;
         private List<RestaurantItem> m_ItemList;
@@ -346,54 +412,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
-    //配列の情報を使ってリストビューの更新を行う
-    private void ListReload() {
-
-        RestaurantAdapter adapter = new RestaurantAdapter(
-                MainActivity.this,
-                R.layout.list_restaurant,
-                m_RestaurantArray);
-
-        ListView list = m_Binding.lvRestaurantList;
-        list.setAdapter(adapter);
-    }
-
-    // Image取得用スレッドクラス
-    class ImageGetTask implements Runnable {
-        private String m_Url;
-        private Bitmap m_Image;
-        private Integer m_Number;
-
-        ImageGetTask(String url, Integer number) {
-            this.m_Url = url;
-            this.m_Number = number;
-        }
-
-        @Override
-        public void run() {
-
-            try {
-
-                URL imageUrl = new URL(m_Url);
-                InputStream imageIs;
-                imageIs = imageUrl.openStream();
-                m_Image = BitmapFactory.decodeStream(imageIs);
-                Log.v("ok", m_Image.toString());
-
-                //画像が取得でき次第配列を更新
-                m_RestaurantArray.get(m_Number).m_Image = m_Image;
-
-                //全部更新できたらリストビューの更新を行う
-                if(m_Client.getResponse().body().results.results_returned == m_Number + 1){
-                    new Handler(Looper.getMainLooper()).post(() -> ListReload());
-                }
-
-            } catch (MalformedURLException e) {
-            } catch (IOException e) {
-            }
-        }
-    }
-
+    //リストビュー用クラス
     public class RestaurantItem {
         private String m_Id;
         private String m_Name;
@@ -421,6 +440,26 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         public String getName() { return m_Name; }
         public String getAccess() { return m_Access; }
         public Bitmap getImage() { return m_Image; }
+    }
+
+    //検索情報を保存しておくクラス
+    public class SearchData {
+        private double m_Latitude;
+        private double m_Longitude;
+        private int m_PageCnt;
+
+        SearchData(){
+            m_Latitude = 0d;
+            m_Longitude = 0d;
+            m_PageCnt = 0;
+        }
+
+        public void setLatitude(double latitude) { m_Latitude = latitude; }
+        public void setLongitude(double longitude) { m_Longitude = longitude; }
+        public void setPageCnt(int pageCnt) { m_PageCnt = pageCnt; }
+        public double getLatitude() {return m_Latitude; }
+        public double getLongitude() { return m_Longitude; }
+        public int getPageCnt() { return m_PageCnt; }
     }
 }
 
