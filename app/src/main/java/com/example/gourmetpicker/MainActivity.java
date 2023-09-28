@@ -32,6 +32,8 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import com.example.gourmetpicker.Data.RestaurantItem;
+import com.example.gourmetpicker.Data.SearchData;
 import com.example.gourmetpicker.databinding.ActivityMainBinding;
 
 import java.io.IOException;
@@ -57,7 +59,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     //検索条件設定画面から情報を受け取るための変数
     private ActivityResultLauncher<Intent> m_Settings;
 
-    //TODO:バックグラウンド時にGPSを停止させる
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -119,16 +120,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         m_Client.setSortByDistance(receive.getBooleanExtra("sortByDistance", false));
 
                         m_SearchData.setPageCnt(0);
-                        getCurrentLocation();
+                        updateCurrentLocation();
                     }
                 }
         );
 
         //リスナーに接続
-        m_Binding.lvRestaurantList.setOnItemClickListener(new listItemClickListener());
-        m_Binding.fabPageSelect.setOnClickListener(new goSearchSettingsListener());
-        m_Binding.ibNext.setOnClickListener(new pageChangeListener(1));
-        m_Binding.ibPrevious.setOnClickListener(new pageChangeListener(-1));
+        m_Binding.lvRestaurantList.setOnItemClickListener(new ListItemClickListener());
+        m_Binding.fabPageSelect.setOnClickListener(new GoSearchSettingsListener());
+        m_Binding.ibNext.setOnClickListener(new PageChangeListener(1));
+        m_Binding.ibPrevious.setOnClickListener(new PageChangeListener(-1));
 
         m_SearchData = new SearchData();
         isFirstSearch = true;
@@ -148,7 +149,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }
 
             //許可されたので再試行
-            getCurrentLocation();
+            updateCurrentLocation();
         }
     }
 
@@ -159,13 +160,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         if(isFirstSearch){
 
             isFirstSearch = false;
-            getCurrentLocation();
+            updateCurrentLocation();
         }
     }
 
     //現在位置を取得
     //取得後、検索を行う
-    private void getCurrentLocation() {
+    private void updateCurrentLocation() {
 
         //権限の確認
         if (ActivityCompat.checkSelfPermission(getApplicationContext(),
@@ -264,11 +265,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             requestCnt++;
         }
 
-        ListReload();
+        reloadList();
     }
 
     //配列の情報を使ってリストビューの更新を行う
-    private void ListReload() {
+    private void reloadList() {
 
         RestaurantAdapter adapter = new RestaurantAdapter(
                 MainActivity.this,
@@ -302,11 +303,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                 Log.v("ok", m_Image.toString());
 
                 //画像が取得でき次第配列を更新
-                m_RestaurantArray.get(m_Number).m_Image = m_Image;
+                m_RestaurantArray.get(m_Number).setImage(m_Image);
 
                 //全部更新できたらリストビューの更新を行う
                 if(m_Client.getResponse().body().results.results_returned == m_Number + 1){
-                    new Handler(Looper.getMainLooper()).post(() -> ListReload());
+                    new Handler(Looper.getMainLooper()).post(() -> reloadList());
                 }
 
             } catch (MalformedURLException e) {
@@ -317,7 +318,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     //店舗をタッチした時に詳細画面に移る
     //IDだけ送ってあとは詳細画面側で取得させる　API複数回叩くの良くないかも？
-    private class listItemClickListener implements AdapterView.OnItemClickListener {
+    private class ListItemClickListener implements AdapterView.OnItemClickListener {
         @Override
         public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
 
@@ -334,7 +335,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     //右下の検索マークをタッチした時に検索条件設定画面に移る
     //保存して検索ボタンで戻ってきた場合のみ設定を受け取って再検索を行う
-    private class goSearchSettingsListener implements View.OnClickListener {
+    private class GoSearchSettingsListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {
 
@@ -348,10 +349,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     //ページ変更ボタン用リスナー
     //コントロールに接続時、渡した数値分増減させる（コンストラクタ参照）
-    private class pageChangeListener implements View.OnClickListener {
+    private class PageChangeListener implements View.OnClickListener {
         Integer m_Value;
 
-        pageChangeListener(int value){
+        PageChangeListener(int value){
             m_Value = value;
         }
 
@@ -400,66 +401,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             RestaurantItem item = m_ItemList.get(position);
 
             TextView title = (TextView) view.findViewById(R.id.tvName);
-            title.setText(item.m_Name);
+            title.setText(item.getName());
 
             TextView access = (TextView) view.findViewById(R.id.tvAccess);
-            access.setText(item.m_Access);
+            access.setText(item.getAccess());
 
             ImageView image = (ImageView) view.findViewById(R.id.ivLogo);
-            image.setImageBitmap(item.m_Image);
+            image.setImageBitmap(item.getImage());
 
             return view;
         }
     }
 
-    //リストビュー用クラス
-    public class RestaurantItem {
-        private String m_Id;
-        private String m_Name;
-        private String m_Access;
-        private Bitmap m_Image;
-
-        public RestaurantItem() {
-            m_Id = "";
-            m_Name = "";
-            m_Access = "";
-            m_Image = null;
-        }
-
-        public void setId(String id) { m_Id = id; }
-        public void setName(String name) {
-            m_Name = name;
-        }
-        public void setAccess(String access) {
-            m_Access = access;
-        }
-        public void setImage(Bitmap image) {
-            m_Image = image;
-        }
-        public String getId() { return m_Id; }
-        public String getName() { return m_Name; }
-        public String getAccess() { return m_Access; }
-        public Bitmap getImage() { return m_Image; }
-    }
-
-    //検索情報を保存しておくクラス
-    public class SearchData {
-        private double m_Latitude;
-        private double m_Longitude;
-        private int m_PageCnt;
-
-        SearchData(){
-            m_Latitude = 0d;
-            m_Longitude = 0d;
-            m_PageCnt = 0;
-        }
-
-        public void setLatitude(double latitude) { m_Latitude = latitude; }
-        public void setLongitude(double longitude) { m_Longitude = longitude; }
-        public void setPageCnt(int pageCnt) { m_PageCnt = pageCnt; }
-        public double getLatitude() {return m_Latitude; }
-        public double getLongitude() { return m_Longitude; }
-        public int getPageCnt() { return m_PageCnt; }
-    }
 }
-

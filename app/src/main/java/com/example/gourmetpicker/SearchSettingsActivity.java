@@ -49,11 +49,11 @@ public class SearchSettingsActivity extends AppCompatActivity {
         spinner.setSelection(getIntent().getBooleanExtra("sortByDistance",true)? 1:0);
 
         //リスナーに接続
-        m_Binding.btSaveSettings.setOnClickListener(new saveListener());
+        m_Binding.btApplyConfig.setOnClickListener(new ApplyConfigListener());
     }
 
     //選択項目の情報を一覧表示画面に送りアクティビティを閉じる
-    private class saveListener implements View.OnClickListener {
+    private class ApplyConfigListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {
 

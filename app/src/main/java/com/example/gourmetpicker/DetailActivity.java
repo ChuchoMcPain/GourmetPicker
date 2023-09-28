@@ -70,8 +70,8 @@ public class DetailActivity extends AppCompatActivity {
         m_Binding.tvPrivateRoom.setText(getText(R.string.PrivateRoom) + "\n " + m_Response.private_room);
         m_Binding.tvOtherMemo.setText(getText(R.string.OtherMemo) + "\n " + m_Response.other_memo);
 
-        m_Binding.btGoSite.setOnClickListener(new goSiteListener());
-        m_Binding.btGoMap.setOnClickListener(new goMapListener());
+        m_Binding.btGoSite.setOnClickListener(new GoSiteListener());
+        m_Binding.btGoMap.setOnClickListener(new GoMapListener());
 
         //画像取得を別スレッドに
         ImageGetTask task = new ImageGetTask(m_Response.photo.mobile.s);
@@ -80,7 +80,7 @@ public class DetailActivity extends AppCompatActivity {
     }
 
     //ホットペッパーグルメ公式サイトに掲載されているページまで移動
-    private class goSiteListener implements View.OnClickListener {
+    private class GoSiteListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {
             Uri uri = Uri.parse(m_Response.urls.pc);
@@ -91,7 +91,7 @@ public class DetailActivity extends AppCompatActivity {
 
     //ブラウザで所在地検索を行う
     //地図APIキー取得出来ないから検索で代用
-    private class goMapListener implements View.OnClickListener {
+    private class GoMapListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {
             String str = "https://www.google.com/search?q=" + m_Response.address + " 地図";
